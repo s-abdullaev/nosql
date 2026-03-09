@@ -12,7 +12,7 @@ services:
       MONGO_INITDB_ROOT_PASSWORD: password
 
   redis:
-    image: redis:7-alpine
+    image: redis/redis-stack-server:latest
     container_name: redis
     restart: unless-stopped
     ports:

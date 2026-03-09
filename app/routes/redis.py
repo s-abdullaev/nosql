@@ -66,27 +66,59 @@ def get_list(key: str, redis_client=Depends(get_redis)):
     return {"key": key, "value": [json.loads(r) for r in raw_list], "type": "list"}
 
 
+@router.post("/hash/{key}/{field}")
+def hash_set(
+    key: str, field: str, value: str = Body(), redis_client=Depends(get_redis)
+):
+    """Set a field in a hash (HSET)."""
+    k = _key_with_type(key, "hash")
+    redis_client.hset(k, field, value)
+    return {"key": key, "field": field, "value": value, "type": "hash"}
+
+
+@router.get("/hash/{key}/{field}")
+def hash_get(key: str, field: str, redis_client=Depends(get_redis)):
+    """Get a field from a hash (HGET)."""
+    k = _key_with_type(key, "hash")
+    value = redis_client.hget(k, field)
+    if value is None:
+        raise HTTPException(
+            status_code=404, detail=f"Key '{key}' or field '{field}' not found"
+        )
+    return {"key": key, "field": field, "value": value, "type": "hash"}
+
+
 @router.post("/json/{key}")
 def set_json(key: str, body: dict = Body(), redis_client=Depends(get_redis)):
-    """Set a JSON object value."""
+    """Set a JSON object value using Redis JSON (JSON.SET)."""
     k = _key_with_type(key, "json")
-    redis_client.set(k, json.dumps(body))
+    redis_client.json().set(k, ".", body)
     return {"key": key, "value": body, "type": "json"}
 
 
 @router.get("/json/{key}")
-def get_json(key: str, redis_client=Depends(get_redis)):
-    """Get a JSON object value."""
+def get_json_root(key: str, redis_client=Depends(get_redis)):
+    """Get a JSON object at root using Redis JSON (JSON.GET)."""
+    return _get_json(key, ".", redis_client)
+
+
+@router.get("/json/{key}/{path:path}")
+def get_json(
+    key: str,
+    path: str,
+    redis_client=Depends(get_redis),
+):
+    """Get a JSON value at path using Redis JSON (JSON.GET). Use . for root, .foo for nested."""
+    json_path = path if path.startswith(".") else f".{path}"
+    return _get_json(key, json_path, redis_client)
+
+
+def _get_json(key: str, json_path: str, redis_client) -> dict:
     k = _key_with_type(key, "json")
-    raw = redis_client.get(k)
-    if raw is None:
-        raise HTTPException(status_code=404, detail=f"Key '{key}' not found")
-    try:
-        value = json.loads(raw)
-        if not isinstance(value, dict):
-            raise ValueError("Not an object")
-    except (json.JSONDecodeError, ValueError):
+    result = redis_client.json().get(k, json_path)
+    if result is None:
         raise HTTPException(
-            status_code=400, detail=f"Value for '{key}' is not a valid JSON object"
+            status_code=404, detail=f"Key '{key}' or path '{json_path}' not found"
         )
-    return {"key": key, "value": value, "type": "json"}
+    value = result[0] if isinstance(result, list) else result
+    return {"key": key, "path": json_path, "value": value, "type": "json"}

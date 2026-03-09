@@ -22,60 +22,19 @@ def seed():
 
 
 def _create_indexes(db):
-    db.classroom.create_indexes(
-        [
-            IndexModel(
-                [("building", ASCENDING), ("room_number", ASCENDING)], unique=True
-            ),
-        ]
-    )
-    db.department.create_indexes(
-        [
-            IndexModel([("dept_name", ASCENDING)], unique=True),
-        ]
-    )
     db.course.create_indexes(
         [
             IndexModel([("course_id", ASCENDING)], unique=True),
             IndexModel([("dept_name", ASCENDING)]),
         ]
     )
-    db.instructor.create_indexes(
+    db.student.create_indexes(
         [
             IndexModel([("id", ASCENDING)], unique=True),
             IndexModel([("dept_name", ASCENDING)]),
         ]
     )
-    db.section.create_indexes(
-        [
-            IndexModel(
-                [
-                    ("course_id", ASCENDING),
-                    ("sec_id", ASCENDING),
-                    ("semester", ASCENDING),
-                    ("year", ASCENDING),
-                ],
-                unique=True,
-            ),
-            IndexModel([("building", ASCENDING), ("room_number", ASCENDING)]),
-            IndexModel([("time_slot_id", ASCENDING)]),
-        ]
-    )
-    db.teaches.create_indexes(
-        [
-            IndexModel(
-                [
-                    ("id", ASCENDING),
-                    ("course_id", ASCENDING),
-                    ("sec_id", ASCENDING),
-                    ("semester", ASCENDING),
-                    ("year", ASCENDING),
-                ],
-                unique=True,
-            ),
-        ]
-    )
-    db.student.create_indexes(
+    db.student_enrollments.create_indexes(
         [
             IndexModel([("id", ASCENDING)], unique=True),
             IndexModel([("dept_name", ASCENDING)]),
@@ -95,61 +54,10 @@ def _create_indexes(db):
             ),
         ]
     )
-    db.advisor.create_indexes(
-        [
-            IndexModel([("s_id", ASCENDING)], unique=True),
-            IndexModel([("i_id", ASCENDING)]),
-        ]
-    )
-    db.time_slot.create_indexes(
-        [
-            IndexModel(
-                [
-                    ("time_slot_id", ASCENDING),
-                    ("day", ASCENDING),
-                    ("start_hr", ASCENDING),
-                    ("start_min", ASCENDING),
-                ],
-                unique=True,
-            ),
-        ]
-    )
-    db.prereq.create_indexes(
-        [
-            IndexModel(
-                [
-                    ("course_id", ASCENDING),
-                    ("prereq_id", ASCENDING),
-                ],
-                unique=True,
-            ),
-        ]
-    )
 
 
 def _insert_data(db):
-    db.classroom.insert_many(
-        [
-            {"building": "Packard", "room_number": "101", "capacity": 500},
-            {"building": "Painter", "room_number": "514", "capacity": 10},
-            {"building": "Taylor", "room_number": "3128", "capacity": 70},
-            {"building": "Watson", "room_number": "100", "capacity": 30},
-            {"building": "Watson", "room_number": "120", "capacity": 50},
-        ]
-    )
-    db.department.insert_many(
-        [
-            {"dept_name": "Biology", "building": "Watson", "budget": 90000},
-            {"dept_name": "Comp. Sci.", "building": "Taylor", "budget": 100000},
-            {"dept_name": "Elec. Eng.", "building": "Taylor", "budget": 85000},
-            {"dept_name": "Finance", "building": "Painter", "budget": 120000},
-            {"dept_name": "History", "building": "Painter", "budget": 50000},
-            {"dept_name": "Music", "building": "Packard", "budget": 80000},
-            {"dept_name": "Physics", "building": "Watson", "budget": 70000},
-        ]
-    )
-    db.course.insert_many(
-        [
+    courses = [
             {
                 "course_id": "BIO-101",
                 "title": "Intro. to Biology",
@@ -229,457 +137,8 @@ def _insert_data(db):
                 "credits": 4,
             },
         ]
-    )
-    db.instructor.insert_many(
-        [
-            {
-                "id": "10101",
-                "name": "Srinivasan",
-                "dept_name": "Comp. Sci.",
-                "salary": 65000,
-            },
-            {"id": "12121", "name": "Wu", "dept_name": "Finance", "salary": 90000},
-            {"id": "15151", "name": "Mozart", "dept_name": "Music", "salary": 40000},
-            {
-                "id": "22222",
-                "name": "Einstein",
-                "dept_name": "Physics",
-                "salary": 95000,
-            },
-            {"id": "32343", "name": "El Said", "dept_name": "History", "salary": 60000},
-            {"id": "33456", "name": "Gold", "dept_name": "Physics", "salary": 87000},
-            {"id": "45565", "name": "Katz", "dept_name": "Comp. Sci.", "salary": 75000},
-            {
-                "id": "58583",
-                "name": "Califieri",
-                "dept_name": "History",
-                "salary": 62000,
-            },
-            {"id": "76543", "name": "Singh", "dept_name": "Finance", "salary": 80000},
-            {"id": "76766", "name": "Crick", "dept_name": "Biology", "salary": 72000},
-            {
-                "id": "83821",
-                "name": "Brandt",
-                "dept_name": "Comp. Sci.",
-                "salary": 92000,
-            },
-            {"id": "98345", "name": "Kim", "dept_name": "Elec. Eng.", "salary": 80000},
-        ]
-    )
-    db.time_slot.insert_many(
-        [
-            {
-                "time_slot_id": "A",
-                "day": "M",
-                "start_hr": 8,
-                "start_min": 0,
-                "end_hr": 8,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "A",
-                "day": "W",
-                "start_hr": 8,
-                "start_min": 0,
-                "end_hr": 8,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "A",
-                "day": "F",
-                "start_hr": 8,
-                "start_min": 0,
-                "end_hr": 8,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "B",
-                "day": "M",
-                "start_hr": 9,
-                "start_min": 0,
-                "end_hr": 9,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "B",
-                "day": "W",
-                "start_hr": 9,
-                "start_min": 0,
-                "end_hr": 9,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "B",
-                "day": "F",
-                "start_hr": 9,
-                "start_min": 0,
-                "end_hr": 9,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "C",
-                "day": "M",
-                "start_hr": 11,
-                "start_min": 0,
-                "end_hr": 11,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "C",
-                "day": "W",
-                "start_hr": 11,
-                "start_min": 0,
-                "end_hr": 11,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "C",
-                "day": "F",
-                "start_hr": 11,
-                "start_min": 0,
-                "end_hr": 11,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "D",
-                "day": "M",
-                "start_hr": 13,
-                "start_min": 0,
-                "end_hr": 13,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "D",
-                "day": "W",
-                "start_hr": 13,
-                "start_min": 0,
-                "end_hr": 13,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "D",
-                "day": "F",
-                "start_hr": 13,
-                "start_min": 0,
-                "end_hr": 13,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "E",
-                "day": "T",
-                "start_hr": 10,
-                "start_min": 30,
-                "end_hr": 11,
-                "end_min": 45,
-            },
-            {
-                "time_slot_id": "E",
-                "day": "R",
-                "start_hr": 10,
-                "start_min": 30,
-                "end_hr": 11,
-                "end_min": 45,
-            },
-            {
-                "time_slot_id": "F",
-                "day": "T",
-                "start_hr": 14,
-                "start_min": 30,
-                "end_hr": 15,
-                "end_min": 45,
-            },
-            {
-                "time_slot_id": "F",
-                "day": "R",
-                "start_hr": 14,
-                "start_min": 30,
-                "end_hr": 15,
-                "end_min": 45,
-            },
-            {
-                "time_slot_id": "G",
-                "day": "M",
-                "start_hr": 16,
-                "start_min": 0,
-                "end_hr": 16,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "G",
-                "day": "W",
-                "start_hr": 16,
-                "start_min": 0,
-                "end_hr": 16,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "G",
-                "day": "F",
-                "start_hr": 16,
-                "start_min": 0,
-                "end_hr": 16,
-                "end_min": 50,
-            },
-            {
-                "time_slot_id": "H",
-                "day": "W",
-                "start_hr": 10,
-                "start_min": 0,
-                "end_hr": 12,
-                "end_min": 30,
-            },
-        ]
-    )
-    db.section.insert_many(
-        [
-            {
-                "course_id": "BIO-101",
-                "sec_id": "1",
-                "semester": "Summer",
-                "year": 2017,
-                "building": "Painter",
-                "room_number": "514",
-                "time_slot_id": "B",
-            },
-            {
-                "course_id": "BIO-301",
-                "sec_id": "1",
-                "semester": "Summer",
-                "year": 2018,
-                "building": "Painter",
-                "room_number": "514",
-                "time_slot_id": "A",
-            },
-            {
-                "course_id": "CS-101",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-                "building": "Packard",
-                "room_number": "101",
-                "time_slot_id": "H",
-            },
-            {
-                "course_id": "CS-101",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Packard",
-                "room_number": "101",
-                "time_slot_id": "F",
-            },
-            {
-                "course_id": "CS-190",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2017,
-                "building": "Taylor",
-                "room_number": "3128",
-                "time_slot_id": "E",
-            },
-            {
-                "course_id": "CS-190",
-                "sec_id": "2",
-                "semester": "Spring",
-                "year": 2017,
-                "building": "Taylor",
-                "room_number": "3128",
-                "time_slot_id": "A",
-            },
-            {
-                "course_id": "CS-315",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Watson",
-                "room_number": "120",
-                "time_slot_id": "D",
-            },
-            {
-                "course_id": "CS-319",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Watson",
-                "room_number": "100",
-                "time_slot_id": "B",
-            },
-            {
-                "course_id": "CS-319",
-                "sec_id": "2",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Taylor",
-                "room_number": "3128",
-                "time_slot_id": "C",
-            },
-            {
-                "course_id": "CS-347",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-                "building": "Taylor",
-                "room_number": "3128",
-                "time_slot_id": "A",
-            },
-            {
-                "course_id": "EE-181",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2017,
-                "building": "Taylor",
-                "room_number": "3128",
-                "time_slot_id": "C",
-            },
-            {
-                "course_id": "FIN-201",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Packard",
-                "room_number": "101",
-                "time_slot_id": "B",
-            },
-            {
-                "course_id": "HIS-351",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Painter",
-                "room_number": "514",
-                "time_slot_id": "C",
-            },
-            {
-                "course_id": "MU-199",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-                "building": "Packard",
-                "room_number": "101",
-                "time_slot_id": "D",
-            },
-            {
-                "course_id": "PHY-101",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-                "building": "Watson",
-                "room_number": "100",
-                "time_slot_id": "A",
-            },
-        ]
-    )
-    db.teaches.insert_many(
-        [
-            {
-                "id": "10101",
-                "course_id": "CS-101",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-            },
-            {
-                "id": "10101",
-                "course_id": "CS-315",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "10101",
-                "course_id": "CS-347",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-            },
-            {
-                "id": "12121",
-                "course_id": "FIN-201",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "15151",
-                "course_id": "MU-199",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "22222",
-                "course_id": "PHY-101",
-                "sec_id": "1",
-                "semester": "Fall",
-                "year": 2017,
-            },
-            {
-                "id": "32343",
-                "course_id": "HIS-351",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "45565",
-                "course_id": "CS-101",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "45565",
-                "course_id": "CS-319",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "76766",
-                "course_id": "BIO-101",
-                "sec_id": "1",
-                "semester": "Summer",
-                "year": 2017,
-            },
-            {
-                "id": "76766",
-                "course_id": "BIO-301",
-                "sec_id": "1",
-                "semester": "Summer",
-                "year": 2018,
-            },
-            {
-                "id": "83821",
-                "course_id": "CS-190",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2017,
-            },
-            {
-                "id": "83821",
-                "course_id": "CS-190",
-                "sec_id": "2",
-                "semester": "Spring",
-                "year": 2017,
-            },
-            {
-                "id": "83821",
-                "course_id": "CS-319",
-                "sec_id": "2",
-                "semester": "Spring",
-                "year": 2018,
-            },
-            {
-                "id": "98345",
-                "course_id": "EE-181",
-                "sec_id": "1",
-                "semester": "Spring",
-                "year": 2017,
-            },
-        ]
-    )
-    db.student.insert_many(
-        [
+    db.course.insert_many(courses)
+    students = [
             {
                 "id": "00128",
                 "name": "Zhang",
@@ -714,9 +173,8 @@ def _insert_data(db):
             },
             {"id": "98988", "name": "Tanaka", "dept_name": "Biology", "tot_cred": 120},
         ]
-    )
-    db.takes.insert_many(
-        [
+    db.student.insert_many(students)
+    takes = [
             {
                 "id": "00128",
                 "course_id": "CS-101",
@@ -894,31 +352,38 @@ def _insert_data(db):
                 "grade": None,
             },
         ]
-    )
-    db.advisor.insert_many(
-        [
-            {"s_id": "00128", "i_id": "45565"},
-            {"s_id": "12345", "i_id": "10101"},
-            {"s_id": "23121", "i_id": "76543"},
-            {"s_id": "44553", "i_id": "22222"},
-            {"s_id": "45678", "i_id": "22222"},
-            {"s_id": "76543", "i_id": "45565"},
-            {"s_id": "76653", "i_id": "98345"},
-            {"s_id": "98765", "i_id": "98345"},
-            {"s_id": "98988", "i_id": "76766"},
-        ]
-    )
-    db.prereq.insert_many(
-        [
-            {"course_id": "BIO-301", "prereq_id": "BIO-101"},
-            {"course_id": "BIO-399", "prereq_id": "BIO-101"},
-            {"course_id": "CS-190", "prereq_id": "CS-101"},
-            {"course_id": "CS-315", "prereq_id": "CS-101"},
-            {"course_id": "CS-319", "prereq_id": "CS-101"},
-            {"course_id": "CS-347", "prereq_id": "CS-101"},
-            {"course_id": "EE-181", "prereq_id": "PHY-101"},
-        ]
-    )
+    db.takes.insert_many(takes)
+
+    # Build student_enrollments: students with their enrolled courses (from takes + course)
+    course_lookup = {c["course_id"]: c for c in courses}
+    student_enrollments = []
+    for student in students:
+        student_takes = [t for t in takes if t["id"] == student["id"]]
+        enrolled_courses = []
+        for take in student_takes:
+            course = course_lookup[take["course_id"]]
+            enrolled_courses.append(
+                {
+                    "course_id": take["course_id"],
+                    "title": course["title"],
+                    "credits": course["credits"],
+                    "dept_name": course["dept_name"],
+                    "sec_id": take["sec_id"],
+                    "semester": take["semester"],
+                    "year": take["year"],
+                    "grade": take["grade"],
+                }
+            )
+        student_enrollments.append(
+            {
+                "id": student["id"],
+                "name": student["name"],
+                "dept_name": student["dept_name"],
+                "tot_cred": student["tot_cred"],
+                "enrolled_courses": enrolled_courses,
+            }
+        )
+    db.student_enrollments.insert_many(student_enrollments)
 
 
 if __name__ == "__main__":

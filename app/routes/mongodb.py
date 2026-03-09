@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from pymongo.collection import ReturnDocument
 from pymongo.errors import DuplicateKeyError
@@ -13,6 +13,46 @@ router = APIRouter(prefix="/mongodb", tags=["mongodb"])
 def list_students(mongo_db=Depends(get_db)):
     """List all students from MongoDB."""
     students = list(mongo_db.student.find({}, {"_id": 0}))
+    return {"students": students}
+
+
+@router.get("/students/credits")
+def list_students_with_aggregated_credits(mongo_db=Depends(get_db)):
+    """List students with total credits aggregated from their enrolled courses."""
+    pipeline = [
+        {
+            "$project": {
+                "_id": 0,
+                "id": 1,
+                "name": 1,
+                "dept_name": 1,
+                "total_credits": {"$sum": "$enrolled_courses.credits"},
+            }
+        }
+    ]
+    students = list(mongo_db.student_enrollments.aggregate(pipeline))
+    return {"students": students}
+
+
+@router.get("/students/credits/by-dept")
+def list_students_with_aggregated_credits_by_dept(
+    dept_name: str = Query(..., description="Department name to filter by"),
+    mongo_db=Depends(get_db),
+):
+    """List students with total credits aggregated from their enrolled courses, filtered by department."""
+    pipeline = [
+        {"$match": {"dept_name": dept_name}},
+        {
+            "$project": {
+                "_id": 0,
+                "id": 1,
+                "name": 1,
+                "dept_name": 1,
+                "total_credits": {"$sum": "$enrolled_courses.credits"},
+            }
+        },
+    ]
+    students = list(mongo_db.student_enrollments.aggregate(pipeline))
     return {"students": students}
 
 

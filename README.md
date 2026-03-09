@@ -1,6 +1,6 @@
 # NoSQL Demo
 
-FastAPI application with MongoDB, seeded from the university schema (database/sql/DDL.sql, DML.sql).
+FastAPI application with MongoDB and Redis (NoSQL stores). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql).
 
 ## Prerequisites
 
@@ -10,13 +10,14 @@ FastAPI application with MongoDB, seeded from the university schema (database/sq
 
 ## Running the Project
 
-### 1. Start MongoDB
+### 1. Start MongoDB and Redis
 
 ```bash
 docker compose up -d
 ```
 
-MongoDB runs on `localhost:27017` with credentials `admin` / `password`.
+- **MongoDB** runs on `localhost:27017` with credentials `admin` / `password`.
+- **Redis** runs on `localhost:6379`.
 
 ### 2. Install Dependencies
 
@@ -59,6 +60,7 @@ cp .env.example .env
 |----------------|--------------------------------------|--------------------------|
 | `MONGO_URI`    | `mongodb://admin:password@localhost:27017` | MongoDB connection string |
 | `MONGO_DB_NAME`| `university`                         | Database name            |
+| `REDIS_URL`    | `redis://localhost:6379/0`           | Redis connection URL     |
 
 The FastAPI app uses these. The seed script uses `database/mongodb/seed.py` and its own hardcoded connection string.
 
@@ -121,3 +123,49 @@ courses = list(db.course.find({"dept_name": "Comp. Sci."}))
 | `GET /`     | Hello message            |
 | `GET /health` | Health check           |
 | `GET /departments` | List all departments |
+
+## Working with Redis
+
+Redis provides key-value caching for string, integer, list, and JSON object values.
+
+### Connect via redis-cli
+
+```bash
+redis-cli -h localhost -p 6379
+```
+
+### Redis API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `POST /redis/string/{key}` | Set a string value (body: `{"value": "..."}`) |
+| `GET /redis/string/{key}` | Get a string value |
+| `POST /redis/int/{key}` | Set an integer value (body: `{"value": 123}`) |
+| `GET /redis/int/{key}` | Get an integer value |
+| `POST /redis/list/{key}/push` | Push a value onto the list (body: `{"value": "..."}` or `{"value": 123}` etc.) |
+| `POST /redis/list/{key}/pop` | Pop a value from the end of the list |
+| `GET /redis/list/{key}` | Get all values in the list |
+| `POST /redis/json/{key}` | Set a JSON object (body: `{"value": {"a": 1}}`) |
+| `GET /redis/json/{key}` | Get a JSON object value |
+
+### Example usage
+
+```bash
+# Set and get a string
+curl -X POST http://localhost:8000/redis/string/hello -H "Content-Type: application/json" -d '{"value": "world"}'
+curl http://localhost:8000/redis/string/hello
+
+# Set and get an integer
+curl -X POST http://localhost:8000/redis/int/counter -H "Content-Type: application/json" -d '{"value": 42}'
+curl http://localhost:8000/redis/int/counter
+
+# Push and pop list values
+curl -X POST http://localhost:8000/redis/list/items/push -H "Content-Type: application/json" -d '{"value": "a"}'
+curl -X POST http://localhost:8000/redis/list/items/push -H "Content-Type: application/json" -d '{"value": 42}'
+curl http://localhost:8000/redis/list/items
+curl -X POST http://localhost:8000/redis/list/items/pop
+
+# Set and get a JSON object
+curl -X POST http://localhost:8000/redis/json/user -H "Content-Type: application/json" -d '{"value": {"name": "Alice", "age": 30}}'
+curl http://localhost:8000/redis/json/user
+```

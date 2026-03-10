@@ -1,6 +1,9 @@
 from pydantic import BaseModel
 
 
+# ── MongoDB schemas ──────────────────────────────────────────────────────────
+
+
 class StudentCreate(BaseModel):
     id: str
     name: str
@@ -27,3 +30,35 @@ class EnrollmentRemove(BaseModel):
     sec_id: str
     semester: str
     year: int
+
+
+# ── PostGIS schemas ──────────────────────────────────────────────────────────
+
+
+class RestaurantCreate(BaseModel):
+    name: str
+    cuisine: str
+    address: str
+    latitude: float
+    longitude: float
+
+
+class RestaurantUpdate(BaseModel):
+    name: str | None = None
+    cuisine: str | None = None
+    address: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
+
+
+class RegionCreate(BaseModel):
+    name: str
+    description: str | None = None
+    coordinates: list[list[float]]
+    """Ring of [longitude, latitude] pairs forming the polygon boundary."""
+
+
+class RegionUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    coordinates: list[list[float]] | None = None

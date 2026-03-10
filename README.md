@@ -1,6 +1,6 @@
 # NoSQL Demo
 
-FastAPI application with MongoDB and Redis (NoSQL stores). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql).
+FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql). PostGIS provides spatial data (restaurants, regions in Paris) managed via Alembic migrations.
 
 ## Prerequisites
 
@@ -10,13 +10,17 @@ FastAPI application with MongoDB and Redis (NoSQL stores). MongoDB is seeded fro
 
 ## How to Run
 
-1. **Start MongoDB and Redis**
+1. **Start all services**
 
    ```bash
    docker compose up -d
    ```
 
-   MongoDB runs on `localhost:27017` (admin / password). Redis runs on `localhost:6379`.
+   | Service  | Port  | Credentials             |
+   |----------|-------|-------------------------|
+   | MongoDB  | 27017 | admin / password        |
+   | Redis    | 6379  | (no auth)               |
+   | PostGIS  | 5432  | postgres / postgres     |
 
 2. **Install dependencies**
 
@@ -24,7 +28,7 @@ FastAPI application with MongoDB and Redis (NoSQL stores). MongoDB is seeded fro
    uv sync
    ```
 
-3. **Seed the database**
+3. **Seed MongoDB**
 
    ```bash
    uv run python -m database.mongodb.seed
@@ -32,7 +36,15 @@ FastAPI application with MongoDB and Redis (NoSQL stores). MongoDB is seeded fro
 
    Creates the `university` database, collections, indexes, and sample data. **Warning:** seed drops the database first (destructive, re-runnable).
 
-4. **Start the API**
+4. **Run PostGIS migrations**
+
+   ```bash
+   uv run alembic upgrade head
+   ```
+
+   Enables the PostGIS extension, creates `restaurant` and `region` tables, and seeds sample geodata (Paris restaurants and neighborhoods).
+
+5. **Start the API**
 
    ```bash
    uv run python main.py
@@ -55,11 +67,12 @@ Copy `.env.example` to `.env` and adjust if needed:
 cp .env.example .env
 ```
 
-| Variable       | Default                              | Description              |
-|----------------|--------------------------------------|--------------------------|
-| `MONGO_URI`    | `mongodb://admin:password@localhost:27017` | MongoDB connection string |
-| `MONGO_DB_NAME`| `university`                         | Database name            |
-| `REDIS_URL`    | `redis://localhost:6379/0`           | Redis connection URL     |
+| Variable        | Default                                    | Description              |
+|-----------------|--------------------------------------------|--------------------------|
+| `MONGO_URI`     | `mongodb://admin:password@localhost:27017`  | MongoDB connection string |
+| `MONGO_DB_NAME` | `university`                               | Database name            |
+| `REDIS_URL`     | `redis://localhost:6379/0`                 | Redis connection URL     |
+| `POSTGRES_URL`  | `postgresql://postgres:postgres@localhost:5432/geodemo` | PostGIS connection URL |
 
 The FastAPI app uses these. The seed script uses `database/mongodb/seed.py` and its own hardcoded connection string.
 
@@ -67,14 +80,16 @@ The FastAPI app uses these. The seed script uses `database/mongodb/seed.py` and 
 
 | What to change | Where |
 |----------------|-------|
-| **API routes** | `app/routes/mongodb.py` (MongoDB), `app/routes/redis.py` (Redis) |
+| **API routes** | `app/routes/mongodb.py`, `app/routes/redis.py`, `app/routes/postgis.py` |
 | **Request/response models** | `app/schema.py` |
-| **Database connection** | `app/database.py`, `config.py` |
+| **Database connections** | `app/database.py` (Mongo + PostGIS), `config.py` |
 | **MongoDB schema & seed data** | `database/mongodb/seed.py` |
+| **PostGIS models** | `app/models.py` (SQLAlchemy + GeoAlchemy2) |
+| **PostGIS migrations** | `alembic/versions/` — create new with `uv run alembic revision -m "description"` |
 | **SQL schema (reference)** | `database/sql/DDL.sql`, `database/sql/DML.sql` |
 | **Add new routers** | `app/main.py` — import and `app.include_router(...)` |
 
-**Development workflow:** Run the API with `--reload` so changes apply automatically. Re-run the seed script after changing `database/mongodb/seed.py`.
+**Development workflow:** Run the API with `--reload` so changes apply automatically. Re-run the seed script after changing `database/mongodb/seed.py`. For PostGIS schema changes, create a new Alembic migration and run `uv run alembic upgrade head`.
 
 ## Working with MongoDB
 
@@ -162,5 +177,94 @@ redis-cli -h localhost -p 6379
 | `POST /redis/json/{key}` | Set a JSON object (body: JSON object) |
 | `GET /redis/json/{key}` | Get JSON at root |
 | `GET /redis/json/{key}/{path}` | Get JSON at path (e.g. `.name`, `.address.city`) |
+
+## Working with PostGIS
+
+PostgreSQL with the PostGIS extension stores geographic data (points, polygons). Tables are managed via SQLAlchemy + GeoAlchemy2 models; schema and seed data are applied through Alembic migrations.
+
+### Connect via psql
+
+```bash
+docker exec -it postgis psql -U postgres -d geodemo
+```
+
+### Tables
+
+| Table        | Geometry Column | Type    | Description                         |
+|--------------|-----------------|---------|-------------------------------------|
+| `restaurant` | `location`      | POINT   | Paris restaurants with coordinates  |
+| `region`     | `boundary`      | POLYGON | Paris neighborhoods as polygons     |
+
+### Example queries (psql)
+
+```sql
+-- All restaurants with readable coordinates
+SELECT name, cuisine, ST_AsText(location) FROM restaurant;
+
+-- All regions with area in square meters
+SELECT name, ST_Area(Geography(boundary)) AS area_m2 FROM region;
+
+-- Restaurants within 500 m of Café de Flore
+SELECT r.name, ST_Distance(Geography(r.location), Geography(f.location)) AS dist_m
+FROM restaurant r, restaurant f
+WHERE f.name = 'Café de Flore'
+  AND ST_DWithin(Geography(r.location), Geography(f.location), 500)
+  AND r.id != f.id
+ORDER BY dist_m;
+
+-- Restaurants inside Saint-Germain-des-Prés
+SELECT r.name
+FROM restaurant r
+JOIN region reg ON ST_Contains(reg.boundary, r.location)
+WHERE reg.name = 'Saint-Germain-des-Prés';
+
+-- Intersection area between two regions
+SELECT ST_Area(Geography(ST_Intersection(a.boundary, b.boundary))) AS area_m2
+FROM region a, region b
+WHERE a.name = 'Saint-Germain-des-Prés' AND b.name = 'Rive Gauche Centre';
+```
+
+### PostGIS API Endpoints
+
+**CRUD — Restaurants**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /postgis/restaurants` | List all restaurants |
+| `POST /postgis/restaurants` | Create a restaurant (body: name, cuisine, address, latitude, longitude) |
+| `GET /postgis/restaurants/{id}` | Get a restaurant |
+| `PUT /postgis/restaurants/{id}` | Update a restaurant |
+| `DELETE /postgis/restaurants/{id}` | Delete a restaurant |
+
+**CRUD — Regions**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /postgis/regions` | List all regions |
+| `POST /postgis/regions` | Create a region (body: name, description, coordinates as `[[lon, lat], ...]`) |
+| `GET /postgis/regions/{id}` | Get a region |
+| `PUT /postgis/regions/{id}` | Update a region |
+| `DELETE /postgis/regions/{id}` | Delete a region |
+
+**Spatial Queries**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /postgis/restaurants/distance?latitude=&longitude=` | Distance (meters) from a point to every restaurant, sorted nearest-first |
+| `GET /postgis/restaurants/nearby?latitude=&longitude=&max_distance=` | Restaurants within a radius, sorted by distance |
+| `GET /postgis/regions/{id}/restaurants` | Restaurants contained within a region (ST_Contains) |
+| `GET /postgis/regions/{id}/area` | Area of a region in sq meters and sq km |
+| `GET /postgis/regions/intersection?region1_id=&region2_id=` | Whether two regions intersect, with intersection geometry and area |
+
+### Alembic Commands
+
+```bash
+uv run alembic upgrade head      # apply all migrations
+uv run alembic downgrade -1      # rollback one migration
+uv run alembic revision -m "msg" # create a new migration
+uv run alembic current           # show current revision
+```
+
+---
 
 Use the interactive API docs at http://localhost:8000/docs to try endpoints.

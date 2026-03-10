@@ -11,3 +11,7 @@ MONGO_URI = os.getenv("MONGO_URI", "mongodb://admin:password@localhost:27017")
 MONGO_DB_NAME = os.getenv("MONGO_DB_NAME", "university")
 
 REDIS_URL = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+
+POSTGRES_URL = os.getenv(
+    "POSTGRES_URL", "postgresql://postgres:postgres@localhost:5432/geodemo"
+)

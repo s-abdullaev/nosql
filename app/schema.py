@@ -62,3 +62,32 @@ class RegionUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
     coordinates: list[list[float]] | None = None
+
+
+# ── Full-Text Search schemas ─────────────────────────────────────────────────
+
+
+class ArticleResult(BaseModel):
+    id: int
+    title: str
+    author: str
+    category: str
+    published: str
+    rank: float | None = None
+    snippet: str | None = None
+
+
+class SearchResponse(BaseModel):
+    query: str
+    mode: str
+    count: int
+    results: list[ArticleResult]
+
+
+class ArticleDetail(BaseModel):
+    id: int
+    title: str
+    body: str
+    author: str
+    category: str
+    published: str

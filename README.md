@@ -1,6 +1,6 @@
 # NoSQL Demo
 
-FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql). PostGIS provides spatial data (restaurants, regions in Paris) managed via Alembic migrations.
+FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql). PostGIS provides spatial data (restaurants, regions in Paris) and full-text search over articles, all managed via Alembic migrations.
 
 ## Prerequisites
 
@@ -42,7 +42,7 @@ FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is se
    uv run alembic upgrade head
    ```
 
-   Enables the PostGIS extension, creates `restaurant` and `region` tables, and seeds sample geodata (Paris restaurants and neighborhoods).
+   Enables the PostGIS extension, creates `restaurant`, `region`, and `article` tables, seeds sample geodata (Paris restaurants and neighborhoods) and sample articles for full-text search.
 
 5. **Start the API**
 
@@ -80,13 +80,14 @@ The FastAPI app uses these. The seed script uses `database/mongodb/seed.py` and 
 
 | What to change | Where |
 |----------------|-------|
-| **API routes** | `app/routes/mongodb.py`, `app/routes/redis.py`, `app/routes/postgis.py` |
+| **API routes** | `app/routes/mongodb.py`, `app/routes/redis.py`, `app/routes/postgis.py`, `app/routes/fts.py` |
 | **Request/response models** | `app/schema.py` |
 | **Database connections** | `app/database.py` (Mongo + PostGIS), `config.py` |
 | **MongoDB schema & seed data** | `database/mongodb/seed.py` |
 | **PostGIS models** | `app/models.py` (SQLAlchemy + GeoAlchemy2) |
 | **PostGIS migrations** | `alembic/versions/` — create new with `uv run alembic revision -m "description"` |
 | **SQL schema (reference)** | `database/sql/DDL.sql`, `database/sql/DML.sql` |
+| **SQL query examples** | `database/sql/fts_queries.sql`, `database/sql/spatial_queries.sql` |
 | **Add new routers** | `app/main.py` — import and `app.include_router(...)` |
 
 **Development workflow:** Run the API with `--reload` so changes apply automatically. Re-run the seed script after changing `database/mongodb/seed.py`. For PostGIS schema changes, create a new Alembic migration and run `uv run alembic upgrade head`.
@@ -255,6 +256,77 @@ WHERE a.name = 'Saint-Germain-des-Prés' AND b.name = 'Rive Gauche Centre';
 | `GET /postgis/regions/{id}/restaurants` | Restaurants contained within a region (ST_Contains) |
 | `GET /postgis/regions/{id}/area` | Area of a region in sq meters and sq km |
 | `GET /postgis/regions/intersection?region1_id=&region2_id=` | Whether two regions intersect, with intersection geometry and area |
+
+**Full-Text Search**
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /fts/search?q=&mode=` | Full-text search with ranking and snippets |
+| `GET /fts/articles` | List all articles (optional `?category=` filter) |
+| `GET /fts/articles/{id}` | Get a single article by ID |
+
+## Working with Full-Text Search
+
+PostgreSQL provides built-in full-text search using `tsvector` (indexed document representation) and `tsquery` (search expression). The `article` table stores a generated `search_vector` column with a GIN index for fast lookups.
+
+### Connect via psql
+
+```bash
+docker exec -it postgis psql -U postgres -d geodemo
+```
+
+### Table
+
+| Table     | Key Columns                      | Description                              |
+|-----------|----------------------------------|------------------------------------------|
+| `article` | `title`, `body`, `search_vector` | Articles with a GIN-indexed tsvector column generated from `title || ' ' || body` |
+
+### Search Modes
+
+| Mode        | PostgreSQL Function      | Description                                          |
+|-------------|--------------------------|------------------------------------------------------|
+| `plain`     | `plainto_tsquery`        | Natural language, implicit AND between words          |
+| `websearch` | `websearch_to_tsquery`   | Google-like syntax with quotes, OR, -minus            |
+| `phrase`    | `phraseto_tsquery`       | Words must appear adjacent in order                   |
+| `raw`       | `to_tsquery`             | Direct tsquery operators: `&` `|` `!` `<->` |
+
+### Example queries (psql)
+
+```sql
+-- Plain search: articles mentioning "PostgreSQL" and "search"
+SELECT id, title
+FROM article
+WHERE search_vector @@ plainto_tsquery('english', 'PostgreSQL search');
+
+-- Websearch: Google-like syntax
+SELECT id, title
+FROM article
+WHERE search_vector @@ websearch_to_tsquery('english', '"artificial intelligence" OR healthcare');
+
+-- Ranked results with highlighted snippets
+SELECT id, title,
+       ts_rank(search_vector, q) AS rank,
+       ts_headline('english', body, q,
+                   'StartSel=**, StopSel=**, MaxFragments=2') AS snippet
+FROM article, websearch_to_tsquery('english', 'remote work') AS q
+WHERE search_vector @@ q
+ORDER BY rank DESC;
+
+-- Phrase search: words must appear adjacent
+SELECT id, title
+FROM article
+WHERE search_vector @@ phraseto_tsquery('english', 'full text search');
+```
+
+More examples in `database/sql/fts_queries.sql`.
+
+### FTS API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /fts/search?q=&mode=` | Full-text search with ranking and snippets (mode: `plain`, `websearch`, `phrase`, `raw`; default: `websearch`) |
+| `GET /fts/articles` | List all articles (optional `?category=` filter) |
+| `GET /fts/articles/{id}` | Get a single article by ID |
 
 ### Alembic Commands
 

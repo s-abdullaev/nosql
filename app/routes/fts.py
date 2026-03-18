@@ -45,9 +45,7 @@ def search_articles(
 ):
     """Full-text search over articles using the GIN-indexed search_vector column."""
     tsquery_func = TSQUERY_FUNCS[mode]
-    tsquery = func.cast(
-        text(f"{tsquery_func}('english', :q)"), type_=None
-    ).params(q=q)
+    tsquery = func.cast(text(f"{tsquery_func}('english', :q)"), type_=None).params(q=q)
 
     query_expr = text(f"{tsquery_func}('english', :q)").bindparams(q=q)
 
@@ -60,14 +58,13 @@ def search_articles(
         text("'StartSel=<b>, StopSel=</b>, MaxFragments=2, FragmentDelimiter= … '"),
     ).label("snippet")
 
-    rows = (
-        db.execute(
-            select(Article, rank_expr, headline_expr)
-            .where(Article.search_vector.op("@@")(query_expr))
-            .order_by(rank_expr.desc())
-        )
-        .all()
+    query = (
+        select(Article, rank_expr, headline_expr)
+        .where(Article.search_vector.op("@@")(query_expr))
+        .order_by(rank_expr.desc())
     )
+
+    rows = db.execute(query).all()
 
     results = [
         ArticleResult(

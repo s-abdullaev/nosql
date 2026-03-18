@@ -3,6 +3,7 @@
 Revision ID: 0003
 Revises: 0002
 """
+
 from typing import Sequence, Union
 
 from alembic import op
@@ -22,19 +23,22 @@ def upgrade() -> None:
         sa.Column("body", sa.Text, nullable=False),
         sa.Column("author", sa.Text, nullable=False),
         sa.Column("category", sa.Text, nullable=False),
-        sa.Column("published", sa.Date, nullable=False, server_default=sa.text("CURRENT_DATE")),
+        sa.Column(
+            "published", sa.Date, nullable=False, server_default=sa.text("CURRENT_DATE")
+        ),
     )
 
     op.execute(
         """
         ALTER TABLE article ADD COLUMN search_vector tsvector
-            GENERATED ALWAYS AS (to_tsvector('english', title || ' ' || body)) STORED
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('english', coalesce(body, '')),  'B')
+            ) STORED
         """
     )
 
-    op.execute(
-        "CREATE INDEX idx_article_search ON article USING GIN (search_vector)"
-    )
+    op.execute("CREATE INDEX idx_article_search ON article USING GIN (search_vector)")
 
 
 def downgrade() -> None:

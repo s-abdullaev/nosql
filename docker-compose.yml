@@ -33,7 +33,20 @@ services:
       POSTGRES_PASSWORD: postgres
       POSTGRES_DB: geodemo
 
+  neo4j:
+    image: neo4j:5
+    container_name: neo4j
+    restart: unless-stopped
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+    environment:
+      NEO4J_AUTH: neo4j/password
+
 volumes:
   mongodb_data:
   redis_data:
   postgis_data:
+  neo4j_data:

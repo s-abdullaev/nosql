@@ -1,6 +1,6 @@
 # NoSQL Demo
 
-FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql). PostGIS provides spatial data (restaurants, regions in Paris) and full-text search over articles, all managed via Alembic migrations.
+FastAPI application with MongoDB, Redis, PostGIS (PostgreSQL), and Neo4j. MongoDB is seeded from the university schema (database/sql/DDL.sql, DML.sql). PostGIS provides spatial data (restaurants, regions in Paris) and full-text search over articles, all managed via Alembic migrations. Neo4j stores a graph of people and places with geographic hierarchy and relationship queries.
 
 ## Prerequisites
 
@@ -16,11 +16,12 @@ FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is se
    docker compose up -d
    ```
 
-   | Service  | Port  | Credentials             |
-   |----------|-------|-------------------------|
-   | MongoDB  | 27017 | admin / password        |
-   | Redis    | 6379  | (no auth)               |
-   | PostGIS  | 5432  | postgres / postgres     |
+   | Service  | Port       | Credentials             |
+   |----------|------------|-------------------------|
+   | MongoDB  | 27017      | admin / password        |
+   | Redis    | 6379       | (no auth)               |
+   | PostGIS  | 5432       | postgres / postgres     |
+   | Neo4j    | 7474, 7687 | neo4j / password        |
 
 2. **Install dependencies**
 
@@ -36,7 +37,15 @@ FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is se
 
    Creates the `university` database, collections, indexes, and sample data. **Warning:** seed drops the database first (destructive, re-runnable).
 
-4. **Run PostGIS migrations**
+4. **Seed Neo4j**
+
+   ```bash
+   uv run python -m database.neo4j.seed
+   ```
+
+   Creates the graph of people, cities, countries, and continents with `BORN_IN`, `LIVES_IN`, `MARRIED`, and `WITHIN` relationships. **Warning:** seed clears all existing nodes and edges first (destructive, re-runnable).
+
+5. **Run PostGIS migrations**
 
    ```bash
    uv run alembic upgrade head
@@ -44,7 +53,7 @@ FastAPI application with MongoDB, Redis, and PostGIS (PostgreSQL). MongoDB is se
 
    Enables the PostGIS extension, creates `restaurant`, `region`, and `article` tables, seeds sample geodata (Paris restaurants and neighborhoods) and sample articles for full-text search.
 
-5. **Start the API**
+6. **Start the API**
 
    ```bash
    uv run python main.py
@@ -73,17 +82,21 @@ cp .env.example .env
 | `MONGO_DB_NAME` | `university`                               | Database name            |
 | `REDIS_URL`     | `redis://localhost:6379/0`                 | Redis connection URL     |
 | `POSTGRES_URL`  | `postgresql://postgres:postgres@localhost:5432/geodemo` | PostGIS connection URL |
+| `NEO4J_URI`     | `bolt://localhost:7687`                                 | Neo4j Bolt URI         |
+| `NEO4J_USER`    | `neo4j`                                                 | Neo4j username         |
+| `NEO4J_PASSWORD` | `password`                                             | Neo4j password         |
 
-The FastAPI app uses these. The seed script uses `database/mongodb/seed.py` and its own hardcoded connection string.
+The FastAPI app uses these. The seed scripts use `database/mongodb/seed.py` and `database/neo4j/seed.py`.
 
 ## How to Make Changes
 
 | What to change | Where |
 |----------------|-------|
-| **API routes** | `app/routes/mongodb.py`, `app/routes/redis.py`, `app/routes/postgis.py`, `app/routes/fts.py` |
+| **API routes** | `app/routes/mongodb.py`, `app/routes/redis.py`, `app/routes/postgis.py`, `app/routes/fts.py`, `app/routes/neo4j.py` |
 | **Request/response models** | `app/schema.py` |
-| **Database connections** | `app/database.py` (Mongo + PostGIS), `config.py` |
+| **Database connections** | `app/database.py` (Mongo + PostGIS + Neo4j), `config.py` |
 | **MongoDB schema & seed data** | `database/mongodb/seed.py` |
+| **Neo4j seed data** | `database/neo4j/seed.py` |
 | **PostGIS models** | `app/models.py` (SQLAlchemy + GeoAlchemy2) |
 | **PostGIS migrations** | `alembic/versions/` — create new with `uv run alembic revision -m "description"` |
 | **SQL schema (reference)** | `database/sql/DDL.sql`, `database/sql/DML.sql` |
@@ -264,6 +277,72 @@ WHERE a.name = 'Saint-Germain-des-Prés' AND b.name = 'Rive Gauche Centre';
 | `GET /fts/search?q=&mode=` | Full-text search with ranking and snippets |
 | `GET /fts/articles` | List all articles (optional `?category=` filter) |
 | `GET /fts/articles/{id}` | Get a single article by ID |
+
+## Working with Neo4j
+
+Neo4j is a graph database storing nodes (vertices) and relationships (edges). The demo models people and geographic locations connected by `BORN_IN`, `LIVES_IN`, `MARRIED`, and `WITHIN` relationships.
+
+### Connect via browser or cypher-shell
+
+- **Browser UI:** http://localhost:7474 (neo4j / password)
+- **cypher-shell:**
+
+  ```bash
+  docker exec -it neo4j cypher-shell -u neo4j -p password
+  ```
+
+### Graph schema
+
+**Node labels:** `Person`, `City`, `State`, `Departement`, `Region`, `Country`, `Continent`
+
+**Relationship types:** `BORN_IN`, `LIVES_IN`, `MARRIED`, `WITHIN`
+
+### Example queries (Cypher)
+
+```cypher
+// All persons with where they were born and live
+MATCH (p:Person)
+OPTIONAL MATCH (p)-[:BORN_IN]->(b)
+OPTIONAL MATCH (p)-[:LIVES_IN]->(h)
+RETURN p.name, b.name AS born_in, h.name AS lives_in;
+
+// People born in one country but living in another
+MATCH (p:Person)-[:BORN_IN]->(bp)-[:WITHIN*0..]->(bc:Country),
+      (p)-[:LIVES_IN]->(hp)-[:WITHIN*0..]->(hc:Country)
+WHERE bc <> hc
+RETURN p.name, bc.name AS birth_country, hc.name AS living_country;
+
+// Full geographic hierarchy for a city
+MATCH (c:City {name: 'Beaune'})-[:WITHIN*0..]->(parent)
+RETURN [n IN nodes((c)-[:WITHIN*0..]->(parent)) | n.name];
+
+// Shortest path between two nodes
+MATCH (a {name: 'Lucy'}), (b {name: 'Beaune'})
+MATCH path = shortestPath((a)-[*]-(b))
+RETURN path;
+
+// All locations within France
+MATCH (child)-[:WITHIN*1..]->(c:Country {name: 'France'})
+RETURN labels(child)[0] AS type, child.name;
+```
+
+### Neo4j API Endpoints
+
+| Endpoint | Description |
+|----------|-------------|
+| `GET /neo4j/persons` | List all persons with born_in and lives_in locations |
+| `GET /neo4j/locations` | List all location nodes |
+| `GET /neo4j/persons/born-and-live-different-country` | People born in one country, living in another |
+| `GET /neo4j/persons/born-and-live-different-continent` | People born on one continent, living on another |
+| `GET /neo4j/persons/live-in-same-city` | Pairs of people living in the same city |
+| `GET /neo4j/persons/married` | All married couples |
+| `GET /neo4j/persons/born-in-country/{country}` | People born within a country |
+| `GET /neo4j/persons/living-in-country/{country}` | People living within a country |
+| `GET /neo4j/persons/{name}/connections` | All direct relationships of a person |
+| `GET /neo4j/locations/{name}/hierarchy` | Full geographic chain (e.g. Beaune -> ... -> Europe) |
+| `GET /neo4j/locations/{name}/within` | All locations contained within a location |
+| `GET /neo4j/shortest-path?from_name=&to_name=` | Shortest path between any two named nodes |
+| `GET /neo4j/stats` | Node and relationship counts by type |
 
 ## Working with Full-Text Search
 

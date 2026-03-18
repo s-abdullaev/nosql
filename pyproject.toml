@@ -15,4 +15,5 @@ dependencies = [
     "psycopg2-binary",
     "alembic",
     "shapely>=2.1.2",
+    "neo4j",
 ]

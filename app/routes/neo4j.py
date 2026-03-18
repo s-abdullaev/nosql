@@ -83,6 +83,38 @@ def live_in_same_city(neo4j: Neo4jSession = Depends(get_neo4j)):
     return {"pairs": [dict(r) for r in result]}
 
 
+@router.get("/persons/{name}/friends")
+def person_friends(name: str, neo4j: Neo4jSession = Depends(get_neo4j)):
+    """List all friends of a person."""
+    result = neo4j.run(
+        """
+        MATCH (p:Person {name: $name})-[f:FRIENDS]-(friend:Person)
+        RETURN friend.name AS friend, f.since AS friends_since
+        ORDER BY friend.name
+    """,
+        name=name,
+    )
+    rows = [dict(r) for r in result]
+    if not rows:
+        raise HTTPException(404, f"Person '{name}' not found or has no friends")
+    return {"person": name, "friends": rows}
+
+
+@router.get("/persons/{name}/friends-of-friends")
+def friends_of_friends(name: str, neo4j: Neo4jSession = Depends(get_neo4j)):
+    """Find friends-of-friends who are not already direct friends."""
+    result = neo4j.run(
+        """
+        MATCH (p:Person {name: $name})-[:FRIENDS]-(friend)-[:FRIENDS]-(fof:Person)
+        WHERE fof <> p AND NOT (p)-[:FRIENDS]-(fof)
+        RETURN DISTINCT fof.name AS suggested_friend,
+               collect(friend.name) AS through
+    """,
+        name=name,
+    )
+    return {"person": name, "suggestions": [dict(r) for r in result]}
+
+
 @router.get("/persons/married")
 def married_couples(neo4j: Neo4jSession = Depends(get_neo4j)):
     """List all married couples."""
@@ -94,53 +126,6 @@ def married_couples(neo4j: Neo4jSession = Depends(get_neo4j)):
     return {"couples": [dict(r) for r in result]}
 
 
-@router.get("/locations/{name}/hierarchy")
-def location_hierarchy(name: str, neo4j: Neo4jSession = Depends(get_neo4j)):
-    """Get the full geographic hierarchy for a location (e.g. Beaune -> ... -> Europe)."""
-    result = neo4j.run("""
-        MATCH (n)-[:WITHIN*0..]->(parent)
-        WHERE n.name = $name OR n.name_fr = $name
-        RETURN [node IN nodes((n)-[:WITHIN*0..]->(parent)) |
-                {type: labels(node)[0], name: coalesce(node.name, node.name_fr)}
-               ] AS chain
-        ORDER BY length((n)-[:WITHIN*0..]->(parent)) DESC
-        LIMIT 1
-    """, name=name)
-    record = result.single()
-    if not record:
-        raise HTTPException(404, f"Location '{name}' not found")
-    return {"location": name, "hierarchy": record["chain"]}
-
-
-@router.get("/locations/{name}/within")
-def locations_within(name: str, neo4j: Neo4jSession = Depends(get_neo4j)):
-    """Find all locations contained within a given location (recursive)."""
-    result = neo4j.run("""
-        MATCH (child)-[:WITHIN*1..]->(parent)
-        WHERE parent.name = $name OR parent.name_fr = $name
-        RETURN labels(child)[0] AS type,
-               coalesce(child.name, child.name_fr) AS name,
-               properties(child) AS props
-        ORDER BY type, name
-    """, name=name)
-    return {"parent": name, "contains": [dict(r) for r in result]}
-
-
-@router.get("/persons/{name}/connections")
-def person_connections(name: str, neo4j: Neo4jSession = Depends(get_neo4j)):
-    """Get all direct relationships of a person."""
-    result = neo4j.run("""
-        MATCH (p:Person {name: $name})-[r]->(target)
-        RETURN type(r) AS relationship,
-               labels(target)[0] AS target_type,
-               coalesce(target.name, target.name_fr) AS target_name
-    """, name=name)
-    rows = [dict(r) for r in result]
-    if not rows:
-        raise HTTPException(404, f"Person '{name}' not found or has no connections")
-    return {"person": name, "connections": rows}
-
-
 @router.get("/shortest-path")
 def shortest_path(
     from_name: str = Query(..., description="Name of the start node"),
@@ -148,7 +133,8 @@ def shortest_path(
     neo4j: Neo4jSession = Depends(get_neo4j),
 ):
     """Find the shortest path between any two named nodes."""
-    result = neo4j.run("""
+    result = neo4j.run(
+        """
         MATCH (a), (b)
         WHERE (a.name = $from_name OR a.name_fr = $from_name)
           AND (b.name = $to_name   OR b.name_fr = $to_name)
@@ -158,7 +144,10 @@ def shortest_path(
                ] AS nodes,
                [r IN relationships(path) | type(r)] AS relationships,
                length(path) AS hops
-    """, from_name=from_name, to_name=to_name)
+    """,
+        from_name=from_name,
+        to_name=to_name,
+    )
     record = result.single()
     if not record:
         raise HTTPException(404, "No path found between the two nodes")
@@ -174,10 +163,13 @@ def shortest_path(
 @router.get("/persons/born-in-country/{country}")
 def persons_born_in_country(country: str, neo4j: Neo4jSession = Depends(get_neo4j)):
     """Find all people born in (or within) a given country."""
-    result = neo4j.run("""
+    result = neo4j.run(
+        """
         MATCH (p:Person)-[:BORN_IN]->(place)-[:WITHIN*0..]->(c:Country {name: $country})
         RETURN p.name AS person, place.name AS born_in
-    """, country=country)
+    """,
+        country=country,
+    )
     rows = [dict(r) for r in result]
     return {"country": country, "persons": rows}
 
@@ -185,10 +177,13 @@ def persons_born_in_country(country: str, neo4j: Neo4jSession = Depends(get_neo4
 @router.get("/persons/living-in-country/{country}")
 def persons_living_in_country(country: str, neo4j: Neo4jSession = Depends(get_neo4j)):
     """Find all people living in (or within) a given country."""
-    result = neo4j.run("""
+    result = neo4j.run(
+        """
         MATCH (p:Person)-[:LIVES_IN]->(place)-[:WITHIN*0..]->(c:Country {name: $country})
         RETURN p.name AS person, place.name AS lives_in
-    """, country=country)
+    """,
+        country=country,
+    )
     rows = [dict(r) for r in result]
     return {"country": country, "persons": rows}
 
@@ -196,8 +191,12 @@ def persons_living_in_country(country: str, neo4j: Neo4jSession = Depends(get_ne
 @router.get("/stats")
 def graph_stats(neo4j: Neo4jSession = Depends(get_neo4j)):
     """Get summary statistics of the graph."""
-    nodes = neo4j.run("MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count ORDER BY label")
-    rels = neo4j.run("MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS count ORDER BY type")
+    nodes = neo4j.run(
+        "MATCH (n) RETURN labels(n)[0] AS label, count(*) AS count ORDER BY label"
+    )
+    rels = neo4j.run(
+        "MATCH ()-[r]->() RETURN type(r) AS type, count(*) AS count ORDER BY type"
+    )
     return {
         "nodes_by_label": {r["label"]: r["count"] for r in nodes},
         "relationships_by_type": {r["type"]: r["count"] for r in rels},

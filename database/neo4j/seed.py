@@ -31,6 +31,8 @@ CREATE (beaune:City   {name: 'Beaune'})
 // ── People ───────────────────────────────────────────────────────────────────
 CREATE (lucy:Person   {name: 'Lucy'})
 CREATE (alain:Person  {name: 'Alain'})
+CREATE (marie:Person  {name: 'Marie'})
+CREATE (john:Person   {name: 'John'})
 
 // ── WITHIN edges (geographic hierarchy) ──────────────────────────────────────
 CREATE (france)-[:WITHIN]->(europe)
@@ -48,7 +50,17 @@ CREATE (lucy)-[:BORN_IN]->(idaho)
 CREATE (lucy)-[:LIVES_IN]->(london)
 CREATE (alain)-[:BORN_IN]->(beaune)
 CREATE (alain)-[:LIVES_IN]->(london)
+CREATE (marie)-[:BORN_IN]->(beaune)
+CREATE (marie)-[:LIVES_IN]->(beaune)
+CREATE (john)-[:BORN_IN]->(london)
+CREATE (john)-[:LIVES_IN]->(london)
 CREATE (lucy)-[:MARRIED]->(alain)
+
+// ── Friendships ──────────────────────────────────────────────────────────────
+CREATE (lucy)-[:FRIENDS {since: 2010}]->(marie)
+CREATE (alain)-[:FRIENDS {since: 2005}]->(marie)
+CREATE (lucy)-[:FRIENDS {since: 2018}]->(john)
+CREATE (john)-[:FRIENDS {since: 2015}]->(alain)
 """
 
 
